@@ -21,7 +21,7 @@ def batched(iterable, n):
     while batch := tuple(islice(it, n)):
         yield batch
 
-def append_anti_basis_error(circuit: stim.Circuit, targets: List[int], p: float, basis: str) -> None:
+def append_anti_basis_error(circuit: stim.Circuit, targets: List[int], p: float, basis: str) -> None: #Adds the errors of the basis (X error for Z-basis) to target qubits appended to the circuit
     if p > 0:
         if basis == "X":
             circuit.append("Z_ERROR", targets, p)
@@ -64,7 +64,7 @@ class CircuitGenParametersCSS():
 
         Flip measurement outcome.
     
-    Swap error:
+    Swap error:   Swaps were used in this architecture? instead of shuttle? - Because of MEC. For shuttling, different architechture is needed.
         parameter : pswap_depolarization
         parameter : nswaps
 
@@ -118,8 +118,8 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
     cycle_actions = stim.Circuit()
     
     # Reset the check qubits
-    cycle_actions.append("TICK", []) 
-    cycle_actions.append("R" + "Z", measurement_qubits)
+    cycle_actions.append("TICK", []) # Add tick (to no qubits in particular)
+    cycle_actions.append("R" + "Z", measurement_qubits) # Reset all measurement qubits to Z measurement basis (0)
     if params.after_reset_flip_probability > 0:
         append_anti_basis_error(cycle_actions, measurement_qubits, params.after_reset_flip_probability, "Z")
 
@@ -512,7 +512,7 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
     # Measure the check qubits
     tail.append("TICK", [])    
     if params.before_measure_flip_probability > 0:
-        append_anti_basis_error(cycle_actions, measurement_qubits, params.before_measure_flip_probability, basis="Z")
+        append_anti_basis_error(tail, measurement_qubits, params.before_measure_flip_probability, basis="Z")
     tail.append("M" + "Z", measurement_qubits)
 
     

@@ -11,7 +11,9 @@ def generate_rotated_surface_code_circuit_layout(distance: int = None,
         distance (int): Distance of the surface code.
 
     Returns:
-        Tuple: A tuple containing the following elements (x_observable, z_observable, data_coords, x_measure_coords, z_measure_coords, q2p, p2q, data_qubits, x_measurement_qubits, measurement_qubits, cnot_targets, measure_coord_to_order, data_coord_to_order, z_order):
+        Tuple: A tuple containing the following elements (x_observable, z_observable, data_coords, x_measure_coords, 
+        z_measure_coords, q2p, p2q, data_qubits, x_measurement_qubits, measurement_qubits, cnot_targets, measure_coord_to_order,
+        data_coord_to_order, z_order):
             - x_observable (List[complex]): List of complex numbers representing the x-observable qubits.
             - z_observable (List[complex]): List of complex numbers representing the z-observable qubits.
             - data_coords (Set[complex]): Set of complex numbers representing the data qubits.
@@ -48,13 +50,13 @@ def generate_rotated_surface_code_circuit_layout(distance: int = None,
     x_observable: List[complex] = []
     z_observable: List[complex] = []
     for x in [i + 0.5 for i in range(z_distance)]:
-        for y in [i + 0.5 for i in range(x_distance)]:
+        for y in [i + 0.5 for i in range(x_distance)]: # two different usages of for loops seen here
             q = x * 2 + y * 2 * 1j
             data_coords.add(q)
             if y == 0.5:
-                z_observable.append(q)
+                z_observable.append(q) # z-observable qubits are along the y=0.5 line?
             if x == 0.5:
-                x_observable.append(q)
+                x_observable.append(q) # x-observable qubits are along the x=0.5 line?
 
     # Place measurement qubits.
     x_measure_coords: Set[complex] = set()
@@ -81,6 +83,8 @@ def generate_rotated_surface_code_circuit_layout(distance: int = None,
     def coord_to_idx(q: complex) -> int:
         q = q - math.fmod(q.real, 2) * 1j
         return int(q.real + q.imag * (z_distance + 0.5))
+    # Assume that the data qubits (coordinates) have been lowered a rung, and we started counting
+    # the qubits (both data and measurement) from the bottom left corner of the lattice.
 
        # Index the measurement qubits and data qubits.
     p2q: Dict[complex, int] = {}
@@ -91,7 +95,8 @@ def generate_rotated_surface_code_circuit_layout(distance: int = None,
         p2q[q] = coord_to_idx(q)
 
     for q in z_measure_coords:
-        p2q[q] = coord_to_idx(q)
+        p2q[q] = coord_to_idx(q) 
+# There seems to be missing indices or gaps in between continuous integers.
 
     q2p: Dict[int, complex] = {v: k for k, v in p2q.items()}
 
@@ -112,7 +117,7 @@ def generate_rotated_surface_code_circuit_layout(distance: int = None,
     data_coord_to_order: Dict[complex, int] = {}
     measure_coord_to_order: Dict[complex, int] = {}
     for q in data_qubits:
-        data_coord_to_order[q2p[q]] = len(data_coord_to_order)
+        data_coord_to_order[q2p[q]] = len(data_coord_to_order) # Every time we add an entry to data_coord_to_order, we increment the length of the dictionary. So the next assignment will be the next available index.
     for q in measurement_qubits:
         measure_coord_to_order[q2p[q]] = len(measure_coord_to_order)
 
@@ -128,7 +133,7 @@ def generate_rotated_surface_code_circuit_layout(distance: int = None,
         for measure in sorted(z_measure_coords, key=lambda c: (c.real, c.imag)):
             data = measure + z_order[k]
             if data in p2q:
-                cnot_targets[k].append(p2q[data])
+                cnot_targets[k].append(p2q[data]) # the cnot target is the measurement qubit here though 
                 cnot_targets[k].append(p2q[measure])
                 
     return (x_observable,

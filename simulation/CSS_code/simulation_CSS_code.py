@@ -5,21 +5,21 @@ import multiprocessing
 import numpy as np
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../spin-qubit-MEC-surface-code'))
-from circuits.CSS_surface_code_architecture import create_rotated_surface_code_CSS_architecture, CircuitGenParametersCSS
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../../spin-qubit-circuit-level-simulation'))
+from circuits.CSS_surface_code_3NArray_architecture import create_rotated_surface_code_CSS_architecture, CircuitGenParametersCSS
  
 """
-Rotated surface code simulation over proposed spin qubit architecture
+Rotated surface code simulation over proposed spin qubit architecture 
 """
 
 # Generates surface code circuit tasks using Stim's circuit generation.
 def generate_example_tasks(is_memory_x=False):
-    etas = [100]
-    probabilities = [0.0018,0.0019]
-    distances = [5, 9, 13, 17]
+    etas = [0.5, 1, 10, 100,1000, 10000]
+    probabilities = [0.0017, 0.0018,0.00185, 0.0019,0.002]
+    distances = [5, 9]#, 13, 17]
     for eta in etas:   
         for p in probabilities:
-            for d in distances:            
+            for d in distances:
                 rounds = 3 * d     
                 params = CircuitGenParametersCSS(
                                                     rounds=rounds,
@@ -29,14 +29,16 @@ def generate_example_tasks(is_memory_x=False):
                                                     before_measure_flip_probability = 2*p,
                                                     after_reset_flip_probability = 2*p,
                                                     after_clifford2_depolarization=p,
-                                                    pswap_depolarization= 0.8*p,
+                                                    pswap_depolarization= 0.1*p,#0.8*p, 0.1 factor for for shuttling
                                                     nswaps=(3,2), # (Ny,Nx) in the main text, defines the swaps of checks and datas (per 2 qubit gate)
                                                 )
                 circuit = create_rotated_surface_code_CSS_architecture(params, is_memory_x=is_memory_x)
-                
+                # --- Add this line to print the STIM circuit ---
+                # print(circuit)
+                # -----------------------------------------------
                 yield sinter.Task(
                     circuit=circuit,
-                    decoder=None,
+                    decoder=None, # not using pymatching?
                     # detector_error_model=decoder_dem,
                     json_metadata={
                         'p': p,
@@ -51,8 +53,8 @@ def main():
     # Collect the samples (takes a few minutes).
     samples = sinter.collect(
         num_workers=multiprocessing.cpu_count()-1,
-        max_shots=200_000_000,
-        max_errors=200000,
+        max_shots=2_000_000,#200_000_000,
+        max_errors=2000,#200000,
         tasks=[task for task in generate_example_tasks(is_memory_x=False)] + [task for task in generate_example_tasks(is_memory_x=True)],
         decoders=["pymatching"],
         #count_detection_events=True,

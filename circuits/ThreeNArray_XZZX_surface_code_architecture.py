@@ -3,10 +3,11 @@ import stim
 from typing import Set, List, Dict, ClassVar
 from dataclasses import dataclass
 import math
+from collections import defaultdict
 from itertools import islice
 import sys
 sys.path.append('../spin_qubit_architecture_circuits')
-from circuits.rotated_surface_code_3NArray_layout import generate_rotated_surface_code_circuit_layout
+from circuits.ThreeNArray_surface_code_layout import generate_rotated_surface_code_circuit_layout # type: ignore
 
 """
 Code for simulating a rotated CSS surface code over the spin qubit architecture using Arrays
@@ -85,7 +86,7 @@ class CircuitGenParametersCSS():
 
 
 def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS,
-                                is_memory_x: bool = False,
+                                is_memory_H: bool = False,
                                 *, 
                                 exclude_other_basis_detectors: bool = False,
                                 ) -> stim.Circuit:
@@ -111,11 +112,29 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
     X_Map_2N,
     # Z_Map,## Probably not needed. Can be combined with Z_Map and sent as Map.
     Z_Map_2N,
-    Map_2N ## This can be substituted by the 'range (-d,d)'. DONE
+    Positions_2N ## This can be substituted by the 'range (-d,d)'. DONE
     ) = generate_rotated_surface_code_circuit_layout(params.distance, params.x_distance, params.z_distance)
 
-    chosen_basis_observable = X_observable_index if is_memory_x else Z_observable_index
-    chosen_basis_measure_index = x_measure_index if is_memory_x else z_measure_index
+    chosen_basis_observable = Z_observable_index if is_memory_H else X_observable_index ### Done. But caution.This should be edited. But the x and z needed to be swapped according the other xzzx file?
+    chosen_basis_measure_index = z_measure_index if is_memory_H else x_measure_index ### This too should be edited. Has been.
+
+    
+    Map_2N = defaultdict(list)
+
+    for k, v in X_Map_2N.items():
+        Map_2N[k] += v
+
+    for k, v in Z_Map_2N.items():
+        Map_2N[k] += v
+    
+    
+    if is_memory_H: 
+        data_qubits_x = data_qubits[::2]
+        data_qubits_z = data_qubits[1::2]
+    else:
+        data_qubits_x = data_qubits[1::2]
+        data_qubits_z = data_qubits[::2]
+
 
     # backandforth = True
 
@@ -169,13 +188,13 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
     ### PLan13: Find starting and ending positions of the check qubits = (+d,1-d) [Assuming check and data align exactly, exept for the last data qubit]
     ### Plan14: Use maps of the data, check indices to find the CNOT pairs. (Although there should be a formula for the figure. Not worth it though)
 
-    for position in sorted(Map_2N):#, reverse=backandforth): ## Careful with this. backandforth do not run inside a loop. We are only defining a type of circuit.
+    for position in sorted(Positions_2N):#, reverse=backandforth): ## Careful with this. backandforth do not run inside a loop. We are only defining a type of circuit.
         cycle_actions_1.append("TICK", [])
         
         for k in measurement_qubits:
             cycle_actions_1.append("QUBIT_COORDS", [k], [position+k, 0])
         
-        if position == sorted(Map_2N)[0]: # We do not need to do shuttling before the first CNOTs ### DOES THIS WORK IN THE FORTH (DIRECTION IN EVERY SECOND ROUND)?
+        if position == sorted(Positions_2N)[0]: # We do not need to do shuttling before the first CNOTs ### DOES THIS WORK IN THE FORTH (DIRECTION IN EVERY SECOND ROUND)?
             pass
         else:
             if pshuttle_depolarization>0:
@@ -191,17 +210,27 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
                 p_z = p*eta / (1+eta)
                 cycle_actions_1.append("PAULI_CHANNEL_1", data_qubits, [p_x, p_y, p_z])
         
-        if position in X_Map_2N:
-            for pair in X_Map_2N[position]:
+        # if position in X_Map_2N:
+        #     for pair in X_Map_2N[position]:
+        #         cycle_actions_1.append("CNOT", pair)
+        #         if params.after_clifford2_depolarization > 0:
+        #             cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+        # if position in Z_Map_2N:
+        #     for pair in Z_Map_2N[position]:
+        #         cycle_actions_1.append("CZ", pair)
+        #         if params.after_clifford2_depolarization > 0:
+        #             cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+        # # cycle_actions.append("DEPOLARIZE1", sorted_ReMap(position),pshuttle_depolarization)
+
+        for pair in Map_2N[position]:
+            if check_snake[pair[0]]-data_snake[pair[1]-x_distance*z_distance+1] in ((1+1j), (-1-1j)):
                 cycle_actions_1.append("CNOT", pair)
                 if params.after_clifford2_depolarization > 0:
                     cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        if position in Z_Map_2N:
-            for pair in Z_Map_2N[position]:
+            else:
                 cycle_actions_1.append("CZ", pair)
                 if params.after_clifford2_depolarization > 0:
                     cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        # cycle_actions.append("DEPOLARIZE1", sorted_ReMap(position),pshuttle_depolarization)
 
         if params.before_round_data_bias_probability[0] > 0:
             p = params.before_round_data_bias_probability[0]
@@ -287,13 +316,13 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
     ### PLan13: Find starting and ending positions of the check qubits = (+d,1-d) [Assuming check and data align exactly, exept for the last data qubit]
     ### Plan14: Use maps of the data, check indices to find the CNOT pairs. (Although there should be a formula for the figure. Not worth it though)
 
-    for position in sorted(Map_2N,reverse=True):#, reverse=backandforth): ## Careful with this. backandforth do not run inside a loop. We are only defining a type of circuit.
+    for position in sorted(Positions_2N,reverse=True):#, reverse=backandforth): ## Careful with this. backandforth do not run inside a loop. We are only defining a type of circuit.
         cycle_actions_2.append("TICK", [])
 
         for k in measurement_qubits:
             cycle_actions_2.append("QUBIT_COORDS", [k], [position+k, 0])
 
-        if position == sorted(Map_2N,reverse=True)[0]: # We do not need to do shuttling before the first CNOTs ### SHOULD THIS BE MAX INSTEAD? BCAUSE IT'S FORTH AND NOT BACK?
+        if position == sorted(Positions_2N,reverse=True)[0]: # We do not need to do shuttling before the first CNOTs ### SHOULD THIS BE MAX INSTEAD? BCAUSE IT'S FORTH AND NOT BACK?
             pass
         else:
             if pshuttle_depolarization>0:
@@ -309,17 +338,26 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
                 p_z = p*eta / (1+eta)
                 cycle_actions_2.append("PAULI_CHANNEL_1", data_qubits, [p_x, p_y, p_z])
         
-        if position in X_Map_2N:
-            for pair in X_Map_2N[position]:
-                cycle_actions_2.append("CNOT", pair)
+        # if position in X_Map_2N:
+        #     for pair in X_Map_2N[position]:
+        #         cycle_actions_2.append("CNOT", pair)
+        #         if params.after_clifford2_depolarization > 0:
+        #             cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+        # if position in Z_Map_2N:
+        #     for pair in Z_Map_2N[position]:
+        #         cycle_actions_2.append("CZ", pair)
+        #         if params.after_clifford2_depolarization > 0:
+        #             cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+        # # cycle_actions.append("DEPOLARIZE1", sorted_ReMap(position),pshuttle_depolarization)
+        for pair in Map_2N[position]:
+            if check_snake[pair[0]]-data_snake[pair[1]-x_distance*z_distance+1] in ((1+1j), (-1-1j)):
+                cycle_actions_1.append("CNOT", pair)
                 if params.after_clifford2_depolarization > 0:
-                    cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        if position in Z_Map_2N:
-            for pair in Z_Map_2N[position]:
-                cycle_actions_2.append("CZ", pair)
+                    cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+            else:
+                cycle_actions_1.append("CZ", pair)
                 if params.after_clifford2_depolarization > 0:
-                    cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        # cycle_actions.append("DEPOLARIZE1", sorted_ReMap(position),pshuttle_depolarization)
+                    cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
 
         if params.before_round_data_bias_probability[0] > 0:
             p = params.before_round_data_bias_probability[0]
@@ -384,13 +422,22 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
 
     # Reset the data qubits
     head.append("TICK", []) 
-    head.append("R" + "ZX"[is_memory_x], data_qubits) # What exactly is a "ZX". There is no definition of it in the function (append_anti_basis_error) defined in the beginning of this script.
+    head.append("RX", data_qubits_x)
+    head.append("R", data_qubits_z)
+    # head.append("R" + "ZX"[is_memory_x], data_qubits) # What exactly is a "ZX". There is no definition of it in the function (append_anti_basis_error) defined in the beginning of this script.
     ### Why reset in ZX basis? Because we want to prepare the data qubits in the logical 0 or + state? 
     ### How do you reset in logical basis for a random code? This was discussed with Reza in the beginning. No clear answer yet.
+    ### In the other file for XZZX code, it seems that the alternate data qubits are reset in states 0 and states + respectively.
 
     if params.after_reset_flip_probability > 0:
-        append_anti_basis_error(head, data_qubits, params.after_reset_flip_probability, "ZX"[is_memory_x]) ## the function doesn't have a ZX specific action, so why?
-    
+        append_anti_basis_error(head, data_qubits_x, params.after_reset_flip_probability, "X")
+        append_anti_basis_error(head, data_qubits_z, params.after_reset_flip_probability, "Z")
+
+    # if params.after_reset_flip_probability > 0:
+    #     append_anti_basis_error(head, data_qubits, params.after_reset_flip_probability, "ZX"[is_memory_x]) ## the function doesn't have a ZX specific action, so why?
+    #### Pay attention here. What to do?
+
+
     # We have compiled the rotated planar code with CZ for the Z checks and every Hadamard gate in state prep
     # has been made to form a |+> state for the check, here explicitly with the Hadamard gate
     ## The check qubits were not present until now? OR did the reset makes it trivial?
@@ -614,10 +661,24 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
                 [check_snake[m_index].real, check_snake[m_index].imag, 0.0] # Visualization in RSC
             )
 
-    # Measure the data qubits
+ #   # Measure the data qubits
+ #   if params.before_measure_flip_probability > 0:
+ #       append_anti_basis_error(tail, data_qubits, params.before_measure_flip_probability, "ZX"[is_memory_x])
+ #   tail.append("M" + "ZX"[is_memory_x], data_qubits)
+ #   ### Pay attention here. What to do?
+
+ #    Measure the data qubits. Similar to the reset, every other qubit is measured in the X basis and the rest in the Z basis.
     if params.before_measure_flip_probability > 0:
-        append_anti_basis_error(tail, data_qubits, params.before_measure_flip_probability, "ZX"[is_memory_x])
-    tail.append("M" + "ZX"[is_memory_x], data_qubits)
+        append_anti_basis_error(tail, data_qubits_x, params.before_measure_flip_probability, "X")
+        append_anti_basis_error(tail, data_qubits_z, params.before_measure_flip_probability, "Z")  
+ #   for q in data_qubits_z:
+ #       # this keeps the order of measuring the data qubits consistent with the order of the data qubits
+ #       tail.append("M" + "XZ"[q in data_qubits_z], [q])
+ #   for q in data_qubits_x:
+ #       # this keeps the order of measuring the data qubits consistent with the order of the data qubits
+ #       tail.append("M" + "XZ"[q in data_qubits_z], [q])
+    tail.append("MX",  data_qubits_x)
+    tail.append("M",  data_qubits_z)
     
     # Detectors
     for measure in chosen_basis_measure_index: ## Any need to sort this first? #sorted(chosen_basis_measure_coords, key=lambda c: (c.real, c.imag)):

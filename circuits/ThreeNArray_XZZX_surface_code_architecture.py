@@ -351,14 +351,13 @@ def create_rotated_surface_code_CSS_architecture(params: CircuitGenParametersCSS
         # # cycle_actions.append("DEPOLARIZE1", sorted_ReMap(position),pshuttle_depolarization)
         for pair in Map_2N[position]:
             if check_snake[pair[0]]-data_snake[pair[1]-x_distance*z_distance+1] in ((1+1j), (-1-1j)):
-                cycle_actions_1.append("CNOT", pair)
+                cycle_actions_2.append("CNOT", pair)
                 if params.after_clifford2_depolarization > 0:
-                    cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+                    cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
             else:
-                cycle_actions_1.append("CZ", pair)
+                cycle_actions_2.append("CZ", pair)
                 if params.after_clifford2_depolarization > 0:
-                    cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-
+                    cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
         if params.before_round_data_bias_probability[0] > 0:
             p = params.before_round_data_bias_probability[0]
             eta = params.before_round_data_bias_probability[1]

@@ -128,12 +128,26 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
         Map_2N[k] += v
     
     
-    if is_memory_H: 
-        data_qubits_x = data_qubits[::2]
-        data_qubits_z = data_qubits[1::2]
+    # ### This doesn't work for the snake order.
+    # if is_memory_H: 
+    #     data_qubits_x = data_qubits[::2]
+    #     data_qubits_z = data_qubits[1::2]
+    # else:
+    #     data_qubits_x = data_qubits[1::2]
+    #     data_qubits_z = data_qubits[::2]
+    data_qubits_x: List[int] = []
+    data_qubits_z: List[int] = []
+
+    for q in data_qubits:
+        if (data_snake[q - x_distance * z_distance + 1].real + data_snake[q - x_distance * z_distance + 1].imag) % 4 == 0:
+            data_qubits_z = data_qubits_z + [q]
+        else:
+            data_qubits_x = data_qubits_x + [q]
+
+    if is_memory_H:
+        pass
     else:
-        data_qubits_x = data_qubits[1::2]
-        data_qubits_z = data_qubits[::2]
+        data_qubits_x, data_qubits_z = data_qubits_z, data_qubits_x
 
 
     # backandforth = True
@@ -191,8 +205,8 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     for position in sorted(Positions_2N):#, reverse=backandforth): ## Careful with this. backandforth do not run inside a loop. We are only defining a type of circuit.
         cycle_actions_1.append("TICK", [])
         
-        for k in measurement_qubits:
-            cycle_actions_1.append("QUBIT_COORDS", [k], [position+k, 0])
+        # for k in measurement_qubits:
+        #     cycle_actions_1.append("QUBIT_COORDS", [k], [position+k, 0])
         
         if position == sorted(Positions_2N)[0]: # We do not need to do shuttling before the first CNOTs ### DOES THIS WORK IN THE FORTH (DIRECTION IN EVERY SECOND ROUND)?
             pass
@@ -319,8 +333,8 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     for position in sorted(Positions_2N,reverse=True):#, reverse=backandforth): ## Careful with this. backandforth do not run inside a loop. We are only defining a type of circuit.
         cycle_actions_2.append("TICK", [])
 
-        for k in measurement_qubits:
-            cycle_actions_2.append("QUBIT_COORDS", [k], [position+k, 0])
+        # for k in measurement_qubits:
+        #     cycle_actions_2.append("QUBIT_COORDS", [k], [position+k, 0])
 
         if position == sorted(Positions_2N,reverse=True)[0]: # We do not need to do shuttling before the first CNOTs ### SHOULD THIS BE MAX INSTEAD? BCAUSE IT'S FORTH AND NOT BACK?
             pass
@@ -415,8 +429,8 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
 
     ## This is for visualization. We'll fix this later
     head = stim.Circuit()
-    for k in data_qubits:
-        head.append("QUBIT_COORDS", [k], [k-x_distance*z_distance + 1, 1])
+    # for k in data_qubits:
+    #     head.append("QUBIT_COORDS", [k], [k-x_distance*z_distance + 1, 1])
     
 
     # Reset the data qubits
@@ -529,7 +543,7 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
         body_1.append("PAULI_CHANNEL_1", data_qubits, [p_x, p_y, p_z])
 
     m = len(measurement_qubits)
-    body_1.append("SHIFT_COORDS", [], [0.0, 0.0, 1.0])
+    # body_1.append("SHIFT_COORDS", [], [0.0, 0.0, 1.0])
     for m_index in measurement_qubits:
         # m_coord = check_snake[m_index]
         k = len(measurement_qubits) - m_index
@@ -594,7 +608,7 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
         body_2.append("PAULI_CHANNEL_1", data_qubits, [p_x, p_y, p_z])
 
     m = len(measurement_qubits)
-    body_2.append("SHIFT_COORDS", [], [0.0, 0.0, 1.0])
+    # body_2.append("SHIFT_COORDS", [], [0.0, 0.0, 1.0])
     for m_index in measurement_qubits:
         # m_coord = check_snake[m_index]
         k = len(measurement_qubits) - m_index
@@ -627,6 +641,7 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     tail = stim.Circuit()
      # Reset the checks
     tail.append("TICK", []) 
+    tail.append("TICK", []) 
     tail.append("R" + "Z", measurement_qubits)
     if params.after_reset_flip_probability > 0:
         append_anti_basis_error(tail, measurement_qubits, params.after_reset_flip_probability, "Z")
@@ -649,7 +664,7 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     
     # Detectoors of checks last round
     m = len(measurement_qubits)
-    tail.append("SHIFT_COORDS", [], [0.0, 0.0, 1.0])
+    # tail.append("SHIFT_COORDS", [], [0.0, 0.0, 1.0])
     for m_index in measurement_qubits:
         # m_coord = q2p[m_index]
         k = len(measurement_qubits) - m_index
@@ -676,8 +691,17 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
  #   for q in data_qubits_x:
  #       # this keeps the order of measuring the data qubits consistent with the order of the data qubits
  #       tail.append("M" + "XZ"[q in data_qubits_z], [q])
-    tail.append("MX",  data_qubits_x)
-    tail.append("M",  data_qubits_z)
+
+#  # This is not measured in proper order, which makes it difficult for the detectors to call them. REWRITE!!
+#     tail.append("MX",  data_qubits_x)
+#     tail.append("M",  data_qubits_z)
+
+    for q in data_qubits:
+        if q in data_qubits_x:
+            tail.append("MX", [q])
+        else:
+            tail.append("M", [q])
+
     
     # Detectors
     for measure in chosen_basis_measure_index: ## Any need to sort this first? #sorted(chosen_basis_measure_coords, key=lambda c: (c.real, c.imag)):
@@ -711,4 +735,4 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
 
     #####--FINAL--####################################################
     # Combine to form final circuit.
-    return head + (body_1+body_2) * ((params.rounds - 2)//2) +(params.rounds%2)*body_1 + tail ## (rounds-2) factor requires rounds >= 2.
+    return head + (body_1+body_2) * (((params.rounds) - 2)//2) +((params.rounds)%2)*body_1 + tail ## (rounds-2) factor requires rounds >= 2.

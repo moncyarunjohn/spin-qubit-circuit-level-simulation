@@ -2,7 +2,7 @@ from typing import Set, List, Dict
 import math
 from collections import defaultdict
 
-distance:int = 5
+distance:int = 3
 x_distance:int = None
 z_distance:int = None
 

@@ -15,8 +15,8 @@ Rotated XZZX surface code simulation for the spin qubit architecture with 3N Arr
 # Generates surface code circuit tasks using Stim's circuit generation.
 def generate_example_tasks(is_memory_H=False):
     etas = [1]#[0.5, 1, 10, 100, 1000, 10000]
-    probabilities = [0.004,0.005,0.006,0.007,0.008,0.009,0.01]#[0.0001,0.0005,0.001]
-    distances = [3,5,7]#,9,11,13]
+    probabilities = [0.004]#,0.005,0.006,0.007,0.008,0.009,0.01]#[0.0001,0.0005,0.001]
+    distances = [3]#,5,7]#,9,11,13]
     for eta in etas:   
         for p in probabilities:
             for d in distances:            

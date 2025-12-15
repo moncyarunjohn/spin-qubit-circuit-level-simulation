@@ -83,8 +83,6 @@ class CircuitGenParametersXZZX():
 
 
 
-
-
 def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
                                 is_memory_H: bool = False,
                                 *, 
@@ -92,17 +90,19 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
                                 ) -> stim.Circuit:
     
     pshuttle_depolarization = params.pswap_depolarization
+    
+    bias_probabilities: List[float] = []
 
     if params.rounds < 2:
-        raise ValueError("Need rounds >= 2")
+        raise ValueError("Need rounds to be >= 2")
     if params.distance is not None and params.distance < 2:
-        raise ValueError("Need a distance >= 2")    
+        raise ValueError("Need a distance to be >= 2")    
     (x_distance,
     z_distance,
     X_observable_index,
     Z_observable_index,
-    data_snake, ## Is not used at all?
-    check_snake, ## Probably only used for visualization
+    data_snake, 
+    check_snake, 
     measurement_qubits,
     data_qubits,
     x_measure_index,
@@ -150,7 +150,6 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
         data_qubits_x, data_qubits_z = data_qubits_z, data_qubits_x
 
 
-    # backandforth = True
 
 
 
@@ -180,7 +179,7 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     # Biased channel on the data qubits as per idling in this time step
     ## Same as reset above, but now the time step is the Hadamard gate
     if params.before_round_data_bias_probability[0] > 0:
-        # We consider that for noisier operations related with longer times the idling should be higher
+        # We consider that for noisier operations related with longer times, the idling is higher
         idling_fact = params.after_clifford1_depolarization / params.after_clifford2_depolarization
         p = idling_fact * params.before_round_data_bias_probability[0]
         eta = params.before_round_data_bias_probability[1]
@@ -223,18 +222,6 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
                 p_y = p/(2*(1+eta))
                 p_z = p*eta / (1+eta)
                 cycle_actions_1.append("PAULI_CHANNEL_1", data_qubits, [p_x, p_y, p_z])
-        
-        # if position in X_Map_2N:
-        #     for pair in X_Map_2N[position]:
-        #         cycle_actions_1.append("CNOT", pair)
-        #         if params.after_clifford2_depolarization > 0:
-        #             cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        # if position in Z_Map_2N:
-        #     for pair in Z_Map_2N[position]:
-        #         cycle_actions_1.append("CZ", pair)
-        #         if params.after_clifford2_depolarization > 0:
-        #             cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        # # cycle_actions.append("DEPOLARIZE1", sorted_ReMap(position),pshuttle_depolarization)
 
         for pair in Map_2N[position]:
             if check_snake[pair[0]]-data_snake[pair[1]-x_distance*z_distance+1] in ((1+1j), (-1-1j)):
@@ -243,8 +230,43 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
                     cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
             else:
                 cycle_actions_1.append("CZ", pair)
+                ###########################
+                """
+                # 2. & 3. Apply second and third layers of CZ gates
+                if params.afterCZ_bias_probability[0] > 0:
+                    p = params.afterCZ_bias_probability[0]
+                    eta = params.afterCZ_bias_probability[1]
+                    bias_probabilities = [p/(12*(1+eta))]*15
+                    bias_probabilities[2] = eta*p / (3*(1+eta))
+                    bias_probabilities[-4] = eta*p / (3*(1+eta))
+                    bias_probabilities[-1] = eta*p / (3*(1+eta))
+                for targets in cnot_targets[1:3]:
+                    cycle_actions.append("TICK", [])
+                    cycle_actions.append("CZ", targets)
+                    if params.afterCZ_bias_probability[0] > 0:
+                        cycle_actions.append("PAULI_CHANNEL_2", targets, bias_probabilities)
+                        """""""
+                    # Idling errors to unused checks
+                    if params.before_round_data_bias_probability[0] > 0:
+                        p = params.before_round_data_bias_probability[0]
+                        eta = params.before_round_data_bias_probability[1]
+                        p_x = p/(2*(1+eta))
+                        p_y = p/(2*(1+eta))
+                        p_z = p*eta / (1+eta)
+                        cycle_actions.append("PAULI_CHANNEL_1", list((set(data_qubits) | set(measurement_qubits)) - (set(targets))), [p_x, p_y, p_z])
+                """
+                #################################
                 if params.after_clifford2_depolarization > 0:
-                    cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+                    p = params.after_clifford2_depolarization
+                    eta = params.before_round_data_bias_probability[1]
+                    bias_probabilities = [p/(12*(1+eta))]*15
+                    bias_probabilities[2] = eta*p / (3*(1+eta))
+                    bias_probabilities[-4] = eta*p / (3*(1+eta))
+                    bias_probabilities[-1] = eta*p / (3*(1+eta))
+
+                    # cycle_actions_1.append("TICK", [])
+                    # cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization) #### THIS IS WHERE BIAS NEED TO BE ADDED.
+                    cycle_actions_1.append("PAULI_CHANNEL_2", pair, bias_probabilities)
 
         if params.before_round_data_bias_probability[0] > 0:
             p = params.before_round_data_bias_probability[0]

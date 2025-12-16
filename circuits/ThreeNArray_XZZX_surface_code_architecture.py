@@ -76,8 +76,8 @@ class CircuitGenParametersXZZX():
     after_reset_flip_probability: float = 0 # # this is for the reset errors
     exclude_other_basis_detectors: bool = False
     after_clifford2_depolarization: float = 0 # this is for the two qubit gates
-    pswap_depolarization: float = 0 ## This has not been altered anywhere else ## error for shuttling the qubits ### pswap_depolarization: float = 0 # error for swapping the qubits
-    nswaps: tuple = (0,0) # (Ny,Nx) number of swaps in each direction to get closer ### nswaps: tuple = (0,0) # (Ny,Nx) number of swaps in each direction to get closer
+    pshuttle_biased: tuple = (0, 0)    ## This has not been altered anywhere else ## error for shuttling the qubits ### pswap_depolarization: float = 0 # error for swapping the qubits
+    # nswaps: tuple = (0,0) # (Ny,Nx) number of swaps in each direction to get closer ### nswaps: tuple = (0,0) # (Ny,Nx) number of swaps in each direction to get closer
 
 
 
@@ -89,7 +89,6 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
                                 exclude_other_basis_detectors: bool = False,
                                 ) -> stim.Circuit:
     
-    pshuttle_depolarization = params.pswap_depolarization
     
     bias_probabilities: List[float] = []
 
@@ -107,10 +106,8 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     data_qubits,
     x_measure_index,
     z_measure_index,
-    # X_Map, ## Probably not needed. Can be combined with Z_Map and sent as Map.
-    Map, ## Used only in the last round. Really needed?
+    Map,
     X_Map_2N,
-    # Z_Map,## Probably not needed. Can be combined with Z_Map and sent as Map.
     Z_Map_2N,
     Positions_2N ## This can be substituted by the 'range (-d,d)'. DONE
     ) = generate_surface_code_circuit_layout(params.distance, params.x_distance, params.z_distance)
@@ -127,14 +124,6 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     for k, v in Z_Map_2N.items():
         Map_2N[k] += v
     
-    
-    # ### This doesn't work for the snake order.
-    # if is_memory_H: 
-    #     data_qubits_x = data_qubits[::2]
-    #     data_qubits_z = data_qubits[1::2]
-    # else:
-    #     data_qubits_x = data_qubits[1::2]
-    #     data_qubits_z = data_qubits[::2]
     data_qubits_x: List[int] = []
     data_qubits_z: List[int] = []
 
@@ -201,21 +190,23 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
     ### PLan13: Find starting and ending positions of the check qubits = (+d,1-d) [Assuming check and data align exactly, exept for the last data qubit]
     ### Plan14: Use maps of the data, check indices to find the CNOT pairs. (Although there should be a formula for the figure. Not worth it though)
 
-    for position in sorted(Positions_2N):#, reverse=backandforth): ## Careful with this. backandforth do not run inside a loop. We are only defining a type of circuit.
+    for position in sorted(Positions_2N):
         cycle_actions_1.append("TICK", [])
-        
-        # for k in measurement_qubits:
-        #     cycle_actions_1.append("QUBIT_COORDS", [k], [position+k, 0])
         
         if position == sorted(Positions_2N)[0]: # We do not need to do shuttling before the first CNOTs ### DOES THIS WORK IN THE FORTH (DIRECTION IN EVERY SECOND ROUND)?
             pass
         else:
-            if pshuttle_depolarization>0:
-                cycle_actions_1.append("DEPOLARIZE1", measurement_qubits,pshuttle_depolarization)
+            if params.pshuttle_biased[0] > 0:
+                p=params.pshuttle_biased[0]
+                etaX=params.pshuttle_biased[1]
+                p_x = etaX*p/(1+etaX)
+                p_y = p/(2*(1+etaX))
+                p_z = p/(2*(1+etaX))
+                cycle_actions_1.append("PAULI_CHANNEL_1", measurement_qubits, [p_x, p_y, p_z])
                 
             if params.before_round_data_bias_probability[0] > 0:
                 # We consider that for noisier operations related with longer times the idling should be higher
-                idling_fact = pshuttle_depolarization / params.after_clifford2_depolarization
+                idling_fact = params.pshuttle_biased[0] / params.after_clifford2_depolarization
                 p = idling_fact * params.before_round_data_bias_probability[0]
                 eta = params.before_round_data_bias_probability[1]
                 p_x = p/(2*(1+eta))
@@ -230,32 +221,6 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
                     cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
             else:
                 cycle_actions_1.append("CZ", pair)
-                ###########################
-                """
-                # 2. & 3. Apply second and third layers of CZ gates
-                if params.afterCZ_bias_probability[0] > 0:
-                    p = params.afterCZ_bias_probability[0]
-                    eta = params.afterCZ_bias_probability[1]
-                    bias_probabilities = [p/(12*(1+eta))]*15
-                    bias_probabilities[2] = eta*p / (3*(1+eta))
-                    bias_probabilities[-4] = eta*p / (3*(1+eta))
-                    bias_probabilities[-1] = eta*p / (3*(1+eta))
-                for targets in cnot_targets[1:3]:
-                    cycle_actions.append("TICK", [])
-                    cycle_actions.append("CZ", targets)
-                    if params.afterCZ_bias_probability[0] > 0:
-                        cycle_actions.append("PAULI_CHANNEL_2", targets, bias_probabilities)
-                        """""""
-                    # Idling errors to unused checks
-                    if params.before_round_data_bias_probability[0] > 0:
-                        p = params.before_round_data_bias_probability[0]
-                        eta = params.before_round_data_bias_probability[1]
-                        p_x = p/(2*(1+eta))
-                        p_y = p/(2*(1+eta))
-                        p_z = p*eta / (1+eta)
-                        cycle_actions.append("PAULI_CHANNEL_1", list((set(data_qubits) | set(measurement_qubits)) - (set(targets))), [p_x, p_y, p_z])
-                """
-                #################################
                 if params.after_clifford2_depolarization > 0:
                     p = params.after_clifford2_depolarization
                     eta = params.before_round_data_bias_probability[1]
@@ -263,9 +228,6 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
                     bias_probabilities[2] = eta*p / (3*(1+eta))
                     bias_probabilities[-4] = eta*p / (3*(1+eta))
                     bias_probabilities[-1] = eta*p / (3*(1+eta))
-
-                    # cycle_actions_1.append("TICK", [])
-                    # cycle_actions_1.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization) #### THIS IS WHERE BIAS NEED TO BE ADDED.
                     cycle_actions_1.append("PAULI_CHANNEL_2", pair, bias_probabilities)
 
         if params.before_round_data_bias_probability[0] > 0:
@@ -361,30 +323,23 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
         if position == sorted(Positions_2N,reverse=True)[0]: # We do not need to do shuttling before the first CNOTs ### SHOULD THIS BE MAX INSTEAD? BCAUSE IT'S FORTH AND NOT BACK?
             pass
         else:
-            if pshuttle_depolarization>0:
-                cycle_actions_2.append("DEPOLARIZE1", measurement_qubits,pshuttle_depolarization)
+            if params.pshuttle_biased[0] >0:
+                p=params.pshuttle_biased[0]
+                etaX=params.pshuttle_biased[1]
+                p_x = etaX*p/(1+etaX)
+                p_y = p/(2*(1+etaX))
+                p_z = p/(2*(1+etaX))
+                cycle_actions_2.append("PAULI_CHANNEL_1", measurement_qubits, [p_x, p_y, p_z])
                 
             if params.before_round_data_bias_probability[0] > 0:
                 # We consider that for noisier operations related with longer times the idling should be higher
-                idling_fact = pshuttle_depolarization / params.after_clifford2_depolarization
+                idling_fact = params.pshuttle_biased[0] / params.after_clifford2_depolarization
                 p = idling_fact * params.before_round_data_bias_probability[0]
                 eta = params.before_round_data_bias_probability[1]
                 p_x = p/(2*(1+eta))
                 p_y = p/(2*(1+eta))
                 p_z = p*eta / (1+eta)
                 cycle_actions_2.append("PAULI_CHANNEL_1", data_qubits, [p_x, p_y, p_z])
-        
-        # if position in X_Map_2N:
-        #     for pair in X_Map_2N[position]:
-        #         cycle_actions_2.append("CNOT", pair)
-        #         if params.after_clifford2_depolarization > 0:
-        #             cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        # if position in Z_Map_2N:
-        #     for pair in Z_Map_2N[position]:
-        #         cycle_actions_2.append("CZ", pair)
-        #         if params.after_clifford2_depolarization > 0:
-        #             cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
-        # # cycle_actions.append("DEPOLARIZE1", sorted_ReMap(position),pshuttle_depolarization)
         for pair in Map_2N[position]:
             if check_snake[pair[0]]-data_snake[pair[1]-x_distance*z_distance+1] in ((1+1j), (-1-1j)):
                 cycle_actions_2.append("CNOT", pair)
@@ -393,7 +348,13 @@ def create_XZZX_surface_code_architecture(params: CircuitGenParametersXZZX,
             else:
                 cycle_actions_2.append("CZ", pair)
                 if params.after_clifford2_depolarization > 0:
-                    cycle_actions_2.append("DEPOLARIZE2", pair, params.after_clifford2_depolarization)
+                    p = params.after_clifford2_depolarization
+                    eta = params.before_round_data_bias_probability[1]
+                    bias_probabilities = [p/(12*(1+eta))]*15
+                    bias_probabilities[2] = eta*p / (3*(1+eta))
+                    bias_probabilities[-4] = eta*p / (3*(1+eta))
+                    bias_probabilities[-1] = eta*p / (3*(1+eta))
+                    cycle_actions_2.append("PAULI_CHANNEL_2", pair, bias_probabilities)
         if params.before_round_data_bias_probability[0] > 0:
             p = params.before_round_data_bias_probability[0]
             eta = params.before_round_data_bias_probability[1]

@@ -14,39 +14,41 @@ Rotated XZZX surface code simulation for the spin qubit architecture with 3N Arr
 
 # Generates surface code circuit tasks using Stim's circuit generation.
 def generate_example_tasks(is_memory_H=False):
-    etas = [1]#[0.5, 1, 10, 100, 1000, 10000]
-    probabilities = [0.004]#,0.005,0.006,0.007,0.008,0.009,0.01]#[0.0001,0.0005,0.001]
-    distances = [3]#,5,7]#,9,11,13]
-    for eta in etas:   
-        for p in probabilities:
-            for d in distances:            
-                rounds = 3 * d     
-                params = CircuitGenParametersXZZX(
-                                                    rounds=rounds,
-                                                    distance=d,
-                                                    after_clifford1_depolarization = p/10,
-                                                    before_round_data_bias_probability= (p/10, eta),
-                                                    before_measure_flip_probability = 2 * p,
-                                                    after_reset_flip_probability =  2 * p,
-                                                    after_clifford2_depolarization=p,                                    
-                                                    pswap_depolarization= 0.1*p,
-                                                    nswaps=(3,2), # (Ny,Nx) in the main text, defines the swaps of checks and datas (per 2 qubit gate)
-                                                )
-                circuit = create_XZZX_surface_code_architecture(params, is_memory_H=is_memory_H)
-                # --- Add this line to print the STIM circuit ---
-                # print(circuit)
-                
-                yield sinter.Task(
-                    circuit=circuit,
-                    decoder=None,
-                    # detector_error_model=decoder_dem,
-                    json_metadata={
-                        'p': p,
-                        'd': d,
-                        "eta": eta,
-                        "params": params.__dict__,
-                        "memory": ["V", "H"][is_memory_H]}       
-                        )               
+    etaXs = [0.5]#, 1, 10, 100, 1000, 10000]
+    etas = [0.5,10,1000]#[0.5, 1, 10, 100, 1000, 10000]
+    probabilities = [0.002,0.003,0.004,0.005]
+    distances = [11,13,15,17,21]
+    for etaX in etaXs:
+        for eta in etas:   
+            for p in probabilities:
+                for d in distances:            
+                    rounds = 3 * d     
+                    params = CircuitGenParametersXZZX(
+                                                        rounds=rounds,
+                                                        distance=d,
+                                                        after_clifford1_depolarization = p/10,
+                                                        before_round_data_bias_probability= (p/10, eta),
+                                                        before_measure_flip_probability = 2 * p,
+                                                        after_reset_flip_probability =  2 * p,
+                                                        after_clifford2_depolarization=p,                                    
+                                                        pshuttle_biased = (0.1*p,etaX),
+                                                        # nswaps=(3,2), # (Ny,Nx) in the main text, defines the swaps of checks and datas (per 2 qubit gate)
+                                                    )
+                    circuit = create_XZZX_surface_code_architecture(params, is_memory_H=is_memory_H)
+                    # --- Add this line to print the STIM circuit ---
+                    # print(circuit)
+                    
+                    yield sinter.Task(
+                        circuit=circuit,
+                        decoder=None,
+                        # detector_error_model=decoder_dem,
+                        json_metadata={
+                            'p': p,
+                            'd': d,
+                            "eta": eta,
+                            "params": params.__dict__,
+                            "memory": ["V", "H"][is_memory_H]}       
+                            )               
 
 def main():
     filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "3NArray")#"FootprintSwap08_p_32")

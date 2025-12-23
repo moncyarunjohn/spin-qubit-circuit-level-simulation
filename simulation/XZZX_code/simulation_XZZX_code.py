@@ -16,7 +16,7 @@ Rotated XZZX surface code simulation for the spin qubit architecture with 3N Arr
 def generate_example_tasks(is_memory_H=False):
     etaXs = [0.5, 10, 1000]
     etas = [0.5,10,1000]#[0.5, 1, 10, 100, 1000, 10000]
-    probabilities = [0.002,0.003,0.004]
+    probabilities = [0.0025,0.0035,0.0045]
     distances = [11,13,15,17]
     for etaX in etaXs:
         for eta in etas:   
